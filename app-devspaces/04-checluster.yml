@@ -8,6 +8,10 @@ metadata:
       {"containers.resources":"true","spec.components.dashboard.headerMessage":"true","spec.components.pluginRegistry.openVSXURL":"true","spec.devEnvironments.defaultComponents":"true","spec.devEnvironments.defaultEditor":"true","spec.devEnvironments.disableContainerBuildCapabilities":"true"}
   name: devspaces
   namespace: openshift-operators
+  labels:
+    app.kubernetes.io/name: devspaces
+    app.kubernetes.io/part-of: devspaces-argocd
+    app.kubernetes.io/managed-by: argocd
 spec:
   components:
     cheServer:

@@ -37,6 +37,7 @@ spec:
     - RespectIgnoreDifferences=true
     - ServerSideApply=true
     - SkipResourceHealthCheck=true
+    - DeletePropagationPolicy=foreground
     retry:
       limit: 10
       backoff:

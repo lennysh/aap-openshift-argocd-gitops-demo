@@ -9,6 +9,10 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
     argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/hook-weight: "1"
+  labels:
+    app.kubernetes.io/name: devspaces
+    app.kubernetes.io/part-of: devspaces-argocd
+    app.kubernetes.io/managed-by: argocd
 spec:
   ttlSecondsAfterFinished: 300
   backoffLimit: 3

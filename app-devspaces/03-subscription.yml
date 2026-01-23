@@ -6,6 +6,10 @@ metadata:
   namespace: openshift-operators
   annotations:
     argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: devspaces
+    app.kubernetes.io/part-of: devspaces-argocd
+    app.kubernetes.io/managed-by: argocd
 spec:
   channel: stable
   installPlanApproval: Automatic
