@@ -28,7 +28,7 @@ spec:
             - -c
             - |
               set -e
-              echo "Checking for existing DevSpaces resources to clean up..."
+              echo "Checking for orphaned DevSpaces resources to clean up..."
               
               # Find any DevSpaces CSV (use simple grep since jsonpath regex doesn't work reliably)
               CSV=$(oc get csv -n openshift-operators -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep "^devspacesoperator" | head -1 || true)
@@ -41,10 +41,30 @@ spec:
                 SUBSCRIPTION=$(oc get subscription -n openshift-operators -o jsonpath='{range .items[?(@.spec.name=="devspaces")]}{.metadata.name}{"\n"}{end}' 2>/dev/null | head -1 || true)
               fi
               
+              # If nothing exists, nothing to clean up - exit immediately
               if [ -z "$CSV" ] && [ -z "$SUBSCRIPTION" ]; then
-                echo "No existing DevSpaces CSV or Subscription found. Nothing to clean up."
+                echo "No existing DevSpaces CSV or Subscription found. Fresh install - nothing to clean up."
                 exit 0
               fi
+              
+              # If both exist, check if they're properly linked - if so, nothing to clean up
+              if [ -n "$CSV" ] && [ -n "$SUBSCRIPTION" ]; then
+                # Check if CSV has ownerReference to the subscription
+                OWNER=$(oc get csv "$CSV" -n openshift-operators -o jsonpath='{.metadata.ownerReferences[?(@.kind=="Subscription")].name}' 2>/dev/null || true)
+                
+                if [ -n "$OWNER" ] && [ "$OWNER" = "$SUBSCRIPTION" ]; then
+                  # Check if subscription properly references the CSV
+                  INSTALLED_CSV=$(oc get subscription "$SUBSCRIPTION" -n openshift-operators -o jsonpath='{.status.installedCSV}' 2>/dev/null || true)
+                  CURRENT_CSV=$(oc get subscription "$SUBSCRIPTION" -n openshift-operators -o jsonpath='{.status.currentCSV}' 2>/dev/null || true)
+                  
+                  if [ "$INSTALLED_CSV" = "$CSV" ] || [ "$CURRENT_CSV" = "$CSV" ]; then
+                    echo "CSV $CSV and Subscription $SUBSCRIPTION are properly linked. No cleanup needed."
+                    exit 0
+                  fi
+                fi
+              fi
+              
+              echo "Found potentially orphaned resources - proceeding with cleanup..."
               
               # If both exist, check if they're properly linked
               if [ -n "$CSV" ] && [ -n "$SUBSCRIPTION" ]; then
