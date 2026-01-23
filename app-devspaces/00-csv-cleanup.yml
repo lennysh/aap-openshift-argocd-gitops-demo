@@ -8,12 +8,13 @@ metadata:
     argocd.argoproj.io/hook: PreSync
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
     argocd.argoproj.io/sync-wave: "1.5"
+    argocd.argoproj.io/hook-weight: "1"
 spec:
   ttlSecondsAfterFinished: 300
   backoffLimit: 3
   template:
     spec:
-      serviceAccountName: default
+      serviceAccountName: argocd-csv-cleanup
       restartPolicy: OnFailure
       containers:
         - name: cleanup
