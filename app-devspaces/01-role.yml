@@ -47,4 +47,5 @@ rules:
   - update
   - patch
   - delete
+  - deletecollection
 ...
