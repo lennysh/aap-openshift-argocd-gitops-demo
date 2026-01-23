@@ -4,16 +4,18 @@ kind: Application
 metadata:
   name: devspaces
   namespace: openshift-gitops
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
   annotations:
     argocd.argoproj.io/sync-wave: "20"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
     repoURL: https://github.com/lennysh/aap-openshift-argocd-gitops-demo.git
     path: app-devspaces
     targetRevision: HEAD
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
     namespace: openshift-devspaces
@@ -23,17 +25,20 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - SkipDryRunOnMissingResource=true
       - RespectIgnoreDifferences=true
-      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 10m
   ignoreDifferences:
     - group: org.eclipse.che
       kind: CheCluster
       name: devspaces
       jsonPointers:
         - /spec
-  retry:
-    limit: 5
-    backoff:
-      duration: 5s
-      factor: 2
-      maxDuration: 10m
