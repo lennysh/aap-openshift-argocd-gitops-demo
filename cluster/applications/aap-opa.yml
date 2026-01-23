@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/lennysh/aap-openshift-argocd-gitops.git
+    repoURL: https://github.com/lennysh/aap-openshift-argocd-gitops-demo.git
     path: app-aap-opa
     targetRevision: HEAD
     directory:
