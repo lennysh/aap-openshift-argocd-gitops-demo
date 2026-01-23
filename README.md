@@ -9,6 +9,7 @@ This repository provides a complete GitOps workflow for deploying Ansible Automa
 ## Features
 
 - **GitOps-driven deployment** using ArgoCD
+- **App-of-Apps pattern** - The `cluster-config` Application manages itself and all other applications
 - **Automated InstallPlan approval** for initial operator installation
 - **Manual InstallPlan approval** for future upgrades (prevents unexpected updates)
 - **Kustomize-based configuration** for easy customization
@@ -35,6 +36,7 @@ cd aap-openshift-argocd-gitops-demo
 ### 2. Update Repository URL (if forking)
 
 If you're using your own fork, update the repository URL in:
+- `cluster/applications/cluster-config.yml` (the app-of-apps)
 - `cluster/applications/aap.yml` (and other application files)
 - Change `repoURL` to point to your repository
 
@@ -47,7 +49,18 @@ Edit the application manifests in `app-aap/` to match your requirements:
 
 ### 4. Deploy to ArgoCD
 
-Apply the ArgoCD Application manifest:
+#### Option A: Bootstrap cluster-config (App-of-Apps)
+
+Create the `cluster-config` Application manually in the ArgoCD UI:
+- Point it to your Git repository
+- Set the path to `cluster`
+- Enable recursive directory scanning
+
+Once created, the `cluster-config` Application will automatically detect and manage all Application YAML files in `cluster/applications/`, including itself!
+
+#### Option B: Manual Application Deployment
+
+Alternatively, you can apply individual Application manifests:
 
 ```bash
 oc apply -f cluster/applications/aap.yml
@@ -58,7 +71,12 @@ oc apply -f cluster/applications/aap.yml
 Watch the ArgoCD application status:
 
 ```bash
+# Check cluster-config (app-of-apps)
+oc get application cluster-config -n openshift-gitops -w
+
+# Check individual applications
 oc get application aap -n openshift-gitops -w
+oc get applications -n openshift-gitops
 ```
 
 Or view in the ArgoCD UI:
@@ -82,10 +100,57 @@ oc get route openshift-gitops-server -n openshift-gitops -o jsonpath='{.spec.hos
 │   └── installplan-approver/  # Automated InstallPlan approval job
 ├── cluster/                   # ArgoCD Application definitions
 │   └── applications/          # Application manifests for ArgoCD
+│       ├── cluster-config.yml # App-of-apps (manages itself and all apps)
+│       ├── aap.yml            # AAP Application
+│       ├── aap-opa.yml        # OPA Application
+│       └── devspaces.yml      # DevSpaces Application
 └── README.md                  # This file
 ```
 
 ## How It Works
+
+### App-of-Apps Pattern
+
+This repository uses the **App-of-Apps** pattern:
+
+1. **`cluster-config` Application** (`cluster/applications/cluster-config.yml`):
+   - Watches the `cluster/` directory recursively
+   - Automatically manages all Application YAML files in `cluster/applications/`
+   - **Manages itself** - any changes to `cluster-config.yml` are automatically applied
+   - Uses sync wave `0` to ensure it syncs before other applications
+
+2. **Individual Applications** (`cluster/applications/*.yml`):
+   - Each Application YAML file defines how to deploy a specific component
+   - Automatically discovered and managed by `cluster-config`
+   - Changes to any Application YAML are automatically synced by ArgoCD
+
+### Adding New Applications
+
+To add a new application:
+
+1. **Create the Application manually in ArgoCD UI** (to bootstrap):
+   - Point it to your Git repository and the path containing your app manifests
+   - Use the same name you'll use in the YAML file
+
+2. **Create the Application YAML file** in `cluster/applications/`:
+   ```bash
+   # Copy an existing app as a template
+   cp cluster/applications/aap.yml cluster/applications/my-new-app.yml
+   # Edit the file with your app details
+   ```
+
+3. **Commit and push**:
+   ```bash
+   git add cluster/applications/my-new-app.yml
+   git commit -m "Add my-new-app Application"
+   git push
+   ```
+
+4. **`cluster-config` will automatically detect and manage it** going forward
+
+After the YAML is in Git, always make changes via Git, not through the ArgoCD UI.
+
+For detailed instructions on exporting manually created applications, see [cluster/applications/README-export.md](cluster/applications/README-export.md).
 
 ### Sync Wave Ordering
 
@@ -151,9 +216,25 @@ oc get csv -n <namespace>
 Check application status and events:
 
 ```bash
+# Check cluster-config (app-of-apps)
+oc describe application cluster-config -n openshift-gitops
+
+# Check individual applications
 oc describe application aap -n openshift-gitops
 oc get events -n openshift-gitops --sort-by='.lastTimestamp'
 ```
+
+### Application Not Being Managed
+
+If an application you created manually isn't being managed by Git:
+
+1. Ensure the Application YAML file exists in `cluster/applications/`
+2. Verify the name in the YAML matches the manually created Application name
+3. Check that `cluster-config` is synced and healthy:
+   ```bash
+   oc get application cluster-config -n openshift-gitops
+   ```
+4. The `cluster-config` Application should automatically detect and reconcile the Application
 
 ## Additional Applications
 
