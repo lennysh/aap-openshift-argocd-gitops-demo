@@ -6,7 +6,6 @@ metadata:
   namespace: openshift-operators
   annotations:
     argocd.argoproj.io/sync-wave: "0"
-    argocd.argoproj.io/hook: PreSync
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
