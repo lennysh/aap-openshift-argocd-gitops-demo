@@ -26,11 +26,16 @@ spec:
               set -e
               echo "Checking for existing DevSpaces resources to clean up..."
               
-              # Find any DevSpaces CSV
-              CSV=$(oc get csv -n openshift-operators -o jsonpath='{.items[?(@.metadata.name=~"devspacesoperator.*")].metadata.name}' 2>/dev/null | head -1 || true)
+              # Find any DevSpaces CSV (use simple grep since jsonpath regex doesn't work reliably)
+              CSV=$(oc get csv -n openshift-operators -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep "^devspacesoperator" | head -1 || true)
               
               # Find any DevSpaces Subscription
-              SUBSCRIPTION=$(oc get subscription -n openshift-operators -o jsonpath='{.items[?(@.spec.name=="devspaces")].metadata.name}' 2>/dev/null | head -1 || true)
+              SUBSCRIPTION=$(oc get subscription -n openshift-operators -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep "^devspaces$" | head -1 || true)
+              
+              # Also check by spec.name
+              if [ -z "$SUBSCRIPTION" ]; then
+                SUBSCRIPTION=$(oc get subscription -n openshift-operators -o jsonpath='{range .items[?(@.spec.name=="devspaces")]}{.metadata.name}{"\n"}{end}' 2>/dev/null | head -1 || true)
+              fi
               
               if [ -z "$CSV" ] && [ -z "$SUBSCRIPTION" ]; then
                 echo "No existing DevSpaces CSV or Subscription found. Nothing to clean up."
