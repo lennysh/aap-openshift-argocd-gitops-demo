@@ -43,19 +43,29 @@ spec:
                 INSTALLED_CSV=$(oc get subscription "$SUBSCRIPTION" -n openshift-operators -o jsonpath='{.status.installedCSV}' 2>/dev/null || true)
                 CURRENT_CSV=$(oc get subscription "$SUBSCRIPTION" -n openshift-operators -o jsonpath='{.status.currentCSV}' 2>/dev/null || true)
                 
+                # Check if CSV has ownerReference to the subscription
+                OWNER=$(oc get csv "$CSV" -n openshift-operators -o jsonpath='{.metadata.ownerReferences[?(@.kind=="Subscription")].name}' 2>/dev/null || true)
+                
+                # If CSV has no ownerReference, it's orphaned - delete both
+                if [ -z "$OWNER" ]; then
+                  echo "CSV $CSV has no Subscription ownerReference. This is orphaned."
+                  echo "Deleting both CSV and Subscription to allow clean recreation..."
+                  oc delete csv "$CSV" -n openshift-operators --ignore-not-found=true
+                  oc delete subscription "$SUBSCRIPTION" -n openshift-operators --ignore-not-found=true
+                  echo "Cleaned up orphaned CSV $CSV and subscription $SUBSCRIPTION"
+                  exit 0
+                fi
+                
+                # If they're properly linked, check if subscription status is correct
                 if [ "$INSTALLED_CSV" = "$CSV" ] || [ "$CURRENT_CSV" = "$CSV" ]; then
-                  echo "Subscription $SUBSCRIPTION properly references CSV $CSV. They are linked correctly."
-                  # Check if CSV has ownerReference
-                  OWNER=$(oc get csv "$CSV" -n openshift-operators -o jsonpath='{.metadata.ownerReferences[?(@.kind=="Subscription")].name}' 2>/dev/null || true)
                   if [ "$OWNER" = "$SUBSCRIPTION" ]; then
-                    echo "CSV $CSV is properly owned by Subscription $SUBSCRIPTION. No cleanup needed."
+                    echo "Subscription $SUBSCRIPTION and CSV $CSV are properly linked. No cleanup needed."
                     exit 0
                   else
-                    echo "CSV $CSV is referenced by subscription but has no ownerReference. This is an orphaned state."
-                    echo "Deleting both to allow clean recreation..."
+                    echo "CSV $CSV is referenced by subscription but owned by different subscription $OWNER. Deleting both."
                     oc delete csv "$CSV" -n openshift-operators --ignore-not-found=true
                     oc delete subscription "$SUBSCRIPTION" -n openshift-operators --ignore-not-found=true
-                    echo "Cleaned up orphaned CSV $CSV and subscription $SUBSCRIPTION"
+                    echo "Cleaned up mismatched CSV $CSV and subscription $SUBSCRIPTION"
                     exit 0
                   fi
                 else
