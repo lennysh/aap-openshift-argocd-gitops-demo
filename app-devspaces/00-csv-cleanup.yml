@@ -24,79 +24,77 @@ spec:
             - -c
             - |
               set -e
-              echo "Checking for existing DevSpaces resources..."
-              
-              # First, check for orphaned Subscriptions (not managed by ArgoCD)
-              echo "Checking for orphaned DevSpaces subscriptions..."
-              ALL_SUBS=$(oc get subscription -n openshift-operators -o jsonpath='{.items[?(@.spec.name=="devspaces")].metadata.name}' 2>/dev/null || true)
-              
-              if [ -n "$ALL_SUBS" ]; then
-                for SUB in $ALL_SUBS; do
-                  echo "Found subscription: $SUB"
-                  # Check if this subscription has proper status linking to a CSV
-                  INSTALLED_CSV=$(oc get subscription "$SUB" -n openshift-operators -o jsonpath='{.status.installedCSV}' 2>/dev/null || true)
-                  CURRENT_CSV=$(oc get subscription "$SUB" -n openshift-operators -o jsonpath='{.status.currentCSV}' 2>/dev/null || true)
-                  
-                  if [ -z "$INSTALLED_CSV" ] && [ -z "$CURRENT_CSV" ]; then
-                    echo "Subscription $SUB has no CSV references. This may be an orphaned subscription."
-                    # Check if CSV exists but isn't linked
-                    CSV=$(oc get csv -n openshift-operators -o jsonpath='{.items[?(@.metadata.name=~"devspacesoperator.*")].metadata.name}' 2>/dev/null | head -1 || true)
-                    if [ -n "$CSV" ]; then
-                      echo "Found orphaned CSV $CSV not linked to subscription. Deleting both."
-                      oc delete csv "$CSV" -n openshift-operators --ignore-not-found=true
-                      oc delete subscription "$SUB" -n openshift-operators --ignore-not-found=true
-                      echo "Cleaned up orphaned subscription $SUB and CSV $CSV"
-                    fi
-                  fi
-                done
-              fi
+              echo "Checking for existing DevSpaces resources to clean up..."
               
               # Find any DevSpaces CSV
-              CSV=$(oc get csv -n openshift-operators -o jsonpath='{.items[?(@.metadata.name=~"devspacesoperator.*")].metadata.name}' 2>/dev/null || true)
+              CSV=$(oc get csv -n openshift-operators -o jsonpath='{.items[?(@.metadata.name=~"devspacesoperator.*")].metadata.name}' 2>/dev/null | head -1 || true)
               
-              if [ -z "$CSV" ]; then
-                echo "No existing DevSpaces CSV found. Nothing to clean up."
+              # Find any DevSpaces Subscription
+              SUBSCRIPTION=$(oc get subscription -n openshift-operators -o jsonpath='{.items[?(@.spec.name=="devspaces")].metadata.name}' 2>/dev/null | head -1 || true)
+              
+              if [ -z "$CSV" ] && [ -z "$SUBSCRIPTION" ]; then
+                echo "No existing DevSpaces CSV or Subscription found. Nothing to clean up."
                 exit 0
               fi
               
-              echo "Found existing CSV: $CSV"
-              
-              # Check if there's a Subscription that references this CSV
-              SUBSCRIPTION=$(oc get subscription -n openshift-operators -o jsonpath='{.items[?(@.status.installedCSV=="'$CSV'")].metadata.name}' 2>/dev/null || true)
-              
-              if [ -z "$SUBSCRIPTION" ]; then
-                SUBSCRIPTION=$(oc get subscription -n openshift-operators -o jsonpath='{.items[?(@.status.currentCSV=="'$CSV'")].metadata.name}' 2>/dev/null || true)
-              fi
-              
-              if [ -n "$SUBSCRIPTION" ]; then
-                echo "CSV $CSV is referenced by subscription $SUBSCRIPTION. Checking if subscription exists..."
-                oc get subscription "$SUBSCRIPTION" -n openshift-operators >/dev/null 2>&1
-                if [ $? -eq 0 ]; then
-                  # Check if subscription has proper status
-                  INSTALLED=$(oc get subscription "$SUBSCRIPTION" -n openshift-operators -o jsonpath='{.status.installedCSV}' 2>/dev/null || true)
-                  if [ "$INSTALLED" = "$CSV" ]; then
-                    echo "Subscription $SUBSCRIPTION properly references CSV $CSV. Exiting."
+              # If both exist, check if they're properly linked
+              if [ -n "$CSV" ] && [ -n "$SUBSCRIPTION" ]; then
+                echo "Found CSV: $CSV and Subscription: $SUBSCRIPTION"
+                INSTALLED_CSV=$(oc get subscription "$SUBSCRIPTION" -n openshift-operators -o jsonpath='{.status.installedCSV}' 2>/dev/null || true)
+                CURRENT_CSV=$(oc get subscription "$SUBSCRIPTION" -n openshift-operators -o jsonpath='{.status.currentCSV}' 2>/dev/null || true)
+                
+                if [ "$INSTALLED_CSV" = "$CSV" ] || [ "$CURRENT_CSV" = "$CSV" ]; then
+                  echo "Subscription $SUBSCRIPTION properly references CSV $CSV. They are linked correctly."
+                  # Check if CSV has ownerReference
+                  OWNER=$(oc get csv "$CSV" -n openshift-operators -o jsonpath='{.metadata.ownerReferences[?(@.kind=="Subscription")].name}' 2>/dev/null || true)
+                  if [ "$OWNER" = "$SUBSCRIPTION" ]; then
+                    echo "CSV $CSV is properly owned by Subscription $SUBSCRIPTION. No cleanup needed."
                     exit 0
                   else
-                    echo "Subscription $SUBSCRIPTION exists but doesn't properly reference CSV $CSV. This is an orphaned CSV."
+                    echo "CSV $CSV is referenced by subscription but has no ownerReference. This is an orphaned state."
+                    echo "Deleting both to allow clean recreation..."
                     oc delete csv "$CSV" -n openshift-operators --ignore-not-found=true
-                    echo "Deleted orphaned CSV: $CSV"
+                    oc delete subscription "$SUBSCRIPTION" -n openshift-operators --ignore-not-found=true
+                    echo "Cleaned up orphaned CSV $CSV and subscription $SUBSCRIPTION"
                     exit 0
                   fi
+                else
+                  echo "Subscription $SUBSCRIPTION does not properly reference CSV $CSV (installedCSV=$INSTALLED_CSV, currentCSV=$CURRENT_CSV)."
+                  echo "This indicates they are orphaned. Deleting both..."
+                  oc delete csv "$CSV" -n openshift-operators --ignore-not-found=true
+                  oc delete subscription "$SUBSCRIPTION" -n openshift-operators --ignore-not-found=true
+                  echo "Cleaned up orphaned CSV $CSV and subscription $SUBSCRIPTION"
+                  exit 0
                 fi
               fi
               
-              # Check if CSV has ownerReference to a Subscription
-              OWNER=$(oc get csv "$CSV" -n openshift-operators -o jsonpath='{.metadata.ownerReferences[?(@.kind=="Subscription")].name}' 2>/dev/null || true)
-              
-              if [ -z "$OWNER" ]; then
-                echo "CSV $CSV has no Subscription ownerReference. This is an orphaned CSV."
-                echo "Deleting orphaned CSV: $CSV"
+              # If only CSV exists (orphaned)
+              if [ -n "$CSV" ] && [ -z "$SUBSCRIPTION" ]; then
+                echo "Found orphaned CSV $CSV with no subscription. Deleting..."
                 oc delete csv "$CSV" -n openshift-operators --ignore-not-found=true
-                echo "CSV cleanup completed."
-              else
-                echo "CSV $CSV is owned by Subscription $OWNER. Not deleting."
+                echo "Deleted orphaned CSV: $CSV"
+                exit 0
               fi
+              
+              # If only Subscription exists (orphaned)
+              if [ -z "$CSV" ] && [ -n "$SUBSCRIPTION" ]; then
+                INSTALLED_CSV=$(oc get subscription "$SUBSCRIPTION" -n openshift-operators -o jsonpath='{.status.installedCSV}' 2>/dev/null || true)
+                CURRENT_CSV=$(oc get subscription "$SUBSCRIPTION" -n openshift-operators -o jsonpath='{.status.currentCSV}' 2>/dev/null || true)
+                
+                if [ -z "$INSTALLED_CSV" ] && [ -z "$CURRENT_CSV" ]; then
+                  echo "Found orphaned subscription $SUBSCRIPTION with no CSV references. Deleting..."
+                  oc delete subscription "$SUBSCRIPTION" -n openshift-operators --ignore-not-found=true
+                  echo "Deleted orphaned subscription: $SUBSCRIPTION"
+                  exit 0
+                else
+                  echo "Subscription $SUBSCRIPTION references CSV $INSTALLED_CSV or $CURRENT_CSV, but CSV doesn't exist. This is an orphaned subscription."
+                  oc delete subscription "$SUBSCRIPTION" -n openshift-operators --ignore-not-found=true
+                  echo "Deleted orphaned subscription: $SUBSCRIPTION"
+                  exit 0
+                fi
+              fi
+              
+              echo "Cleanup completed."
           resources:
             requests:
               cpu: 10m
