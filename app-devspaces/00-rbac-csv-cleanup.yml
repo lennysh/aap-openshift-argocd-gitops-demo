@@ -49,7 +49,7 @@ roleRef:
   name: argocd-csv-cleanup
 subjects:
 - kind: ServiceAccount
-  name: argocd-csv-cleanup
+  name: default
   namespace: openshift-operators
 - kind: ServiceAccount
   name: openshift-gitops-argocd-application-controller

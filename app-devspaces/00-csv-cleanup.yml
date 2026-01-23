@@ -14,7 +14,7 @@ spec:
   backoffLimit: 3
   template:
     spec:
-      serviceAccountName: argocd-csv-cleanup
+      serviceAccountName: default
       restartPolicy: OnFailure
       containers:
         - name: cleanup
