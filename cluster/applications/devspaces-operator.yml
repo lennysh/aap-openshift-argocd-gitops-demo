@@ -1,0 +1,39 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: devspaces-operator
+  namespace: openshift-gitops
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/lennysh/aap-openshift-argocd-gitops-demo.git
+    path: app-devspaces
+    targetRevision: HEAD
+    directory:
+      include: 03-subscription.yml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-operators
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=false
+    - RespectIgnoreDifferences=true
+    - ApplyOutOfSyncOnly=true
+  ignoreDifferences:
+  - group: operators.coreos.com
+    kind: Subscription
+    jsonPointers:
+    - /status/conditions
+  retry:
+    backoff:
+      duration: 5s
+      factor: 2
+      maxDuration: 10m
