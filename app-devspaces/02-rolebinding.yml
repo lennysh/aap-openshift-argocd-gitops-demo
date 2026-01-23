@@ -11,7 +11,10 @@ roleRef:
   kind: Role
   name: argocd-checluster-manager
 subjects:
-  - kind: ServiceAccount
-    name: openshift-gitops-argocd-application-controller
-    namespace: openshift-gitops
+- kind: ServiceAccount
+  name: openshift-gitops-argocd-application-controller
+  namespace: openshift-gitops
+- kind: ServiceAccount
+  name: argocd-csv-cleanup
+  namespace: openshift-operators
 ...
