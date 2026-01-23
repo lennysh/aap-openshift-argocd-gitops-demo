@@ -251,7 +251,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This repository is provided as-is for demonstration and educational purposes.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
