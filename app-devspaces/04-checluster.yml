@@ -31,8 +31,8 @@ spec:
     secondsOfInactivityBeforeIdling: 1800
     secondsOfRunBeforeIdling: -1
     startTimeoutSeconds: 300
-  storage:
-    pvcStrategy: per-user
+    storage:
+      pvcStrategy: per-user
   networking:
     auth:
       gateway:
