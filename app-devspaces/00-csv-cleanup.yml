@@ -1,0 +1,67 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: csv-cleanup
+  namespace: openshift-operators
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-wave: "1.5"
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: default
+      restartPolicy: OnFailure
+      containers:
+        - name: cleanup
+          image: registry.redhat.io/openshift4/ose-cli:v4.14
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Checking for existing DevSpaces CSV..."
+              
+              # Find any DevSpaces CSV
+              CSV=$(oc get csv -n openshift-operators -o jsonpath='{.items[?(@.metadata.name=~"devspacesoperator.*")].metadata.name}' 2>/dev/null || true)
+              
+              if [ -z "$CSV" ]; then
+                echo "No existing DevSpaces CSV found. Nothing to clean up."
+                exit 0
+              fi
+              
+              echo "Found existing CSV: $CSV"
+              
+              # Check if there's a Subscription that references this CSV
+              SUBSCRIPTION=$(oc get subscription -n openshift-operators -o jsonpath='{.items[?(@.status.installedCSV=="'$CSV'")].metadata.name}' 2>/dev/null || true)
+              
+              if [ -n "$SUBSCRIPTION" ]; then
+                echo "CSV $CSV is referenced by subscription $SUBSCRIPTION. Checking if subscription exists..."
+                oc get subscription "$SUBSCRIPTION" -n openshift-operators >/dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                  echo "Subscription $SUBSCRIPTION exists. CSV should be managed by OLM. Exiting."
+                  exit 0
+                fi
+              fi
+              
+              # Check if CSV has ownerReference to a Subscription
+              OWNER=$(oc get csv "$CSV" -n openshift-operators -o jsonpath='{.metadata.ownerReferences[?(@.kind=="Subscription")].name}' 2>/dev/null || true)
+              
+              if [ -z "$OWNER" ]; then
+                echo "CSV $CSV has no Subscription ownerReference. This is an orphaned CSV."
+                echo "Deleting orphaned CSV: $CSV"
+                oc delete csv "$CSV" -n openshift-operators --ignore-not-found=true
+                echo "CSV cleanup completed."
+              else
+                echo "CSV $CSV is owned by Subscription $OWNER. Not deleting."
+              fi
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
