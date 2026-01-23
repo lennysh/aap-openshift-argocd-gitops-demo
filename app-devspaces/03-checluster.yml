@@ -1,19 +1,11 @@
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: openshift-devspaces
-  labels:
-    kubernetes.io/metadata.name: openshift-devspaces
-spec:
-  finalizers:
-    - kubernetes
----
 apiVersion: org.eclipse.che/v2
 kind: CheCluster
 metadata:
   name: devspaces
   namespace: openshift-devspaces
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   components:
     cheServer:

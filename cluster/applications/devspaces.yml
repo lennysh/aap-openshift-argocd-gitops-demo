@@ -14,8 +14,6 @@ spec:
     repoURL: https://github.com/lennysh/aap-openshift-argocd-gitops-demo.git
     path: app-devspaces
     targetRevision: HEAD
-    directory:
-      include: 04-checluster.yml
   destination:
     server: https://kubernetes.default.svc
     namespace: openshift-devspaces
@@ -24,15 +22,15 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-    - CreateNamespace=true
-    - RespectIgnoreDifferences=true
-    - ApplyOutOfSyncOnly=true
+      - CreateNamespace=false
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true
   ignoreDifferences:
-  - group: org.eclipse.che
-    kind: CheCluster
-    name: devspaces
-    jsonPointers:
-    - /spec
+    - group: org.eclipse.che
+      kind: CheCluster
+      name: devspaces
+      jsonPointers:
+        - /spec
   retry:
     limit: 5
     backoff:
