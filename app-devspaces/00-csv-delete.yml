@@ -1,0 +1,60 @@
+---
+# This PreSync hook ensures CSVs are deleted when the Application is deleted
+# CSVs don't always have ownerReferences, so they may not be deleted automatically
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: csv-delete-on-cleanup
+  namespace: openshift-operators
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/name: devspaces
+    app.kubernetes.io/part-of: devspaces-argocd
+    app.kubernetes.io/managed-by: argocd
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: default
+      restartPolicy: Never
+      containers:
+        - name: cleanup
+          image: registry.redhat.io/openshift4/ose-cli:v4.14
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Checking if we need to delete DevSpaces CSV during cleanup..."
+              
+              # Check if Subscription exists - if it does, we're syncing, not deleting
+              SUBSCRIPTION=$(oc get subscription devspaces -n openshift-operators 2>/dev/null || true)
+              
+              if [ -n "$SUBSCRIPTION" ]; then
+                echo "Subscription exists - this is a sync operation, not deletion. Exiting."
+                exit 0
+              fi
+              
+              # Subscription doesn't exist - check if CSV exists and delete it
+              CSV=$(oc get csv -n openshift-operators -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep "^devspacesoperator" | head -1 || true)
+              
+              if [ -z "$CSV" ]; then
+                echo "No DevSpaces CSV found. Nothing to clean up."
+                exit 0
+              fi
+              
+              echo "Found orphaned CSV: $CSV (Subscription was deleted but CSV remains)"
+              echo "Deleting CSV to ensure complete cleanup..."
+              oc delete csv "$CSV" -n openshift-operators --ignore-not-found=true
+              echo "CSV cleanup completed."
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
