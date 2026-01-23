@@ -2,11 +2,11 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: ansible-automation-platform-operator-subscription
-  namespace: aap26
+  namespace: aap
   annotations:
     argocd.argoproj.io/sync-wave: "3"
   labels:
-    operators.coreos.com/ansible-automation-platform-operator.aap26: ''
+    operators.coreos.com/ansible-automation-platform-operator.aap: ''
 spec:
   # The channel should correspond to the AAP version you want.
   # Check the available channels in your cluster for the exact name.

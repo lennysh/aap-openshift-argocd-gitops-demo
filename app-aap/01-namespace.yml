@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: aap26
+  name: aap
   annotations:
     argocd.argoproj.io/sync-wave: "1"
   labels:
-    kubernetes.io/metadata.name: aap26
+    kubernetes.io/metadata.name: aap
     argocd.argoproj.io/managed-by: openshift-gitops
 spec:
   finalizers:
