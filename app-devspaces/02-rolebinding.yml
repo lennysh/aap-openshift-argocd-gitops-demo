@@ -5,7 +5,8 @@ metadata:
   name: argocd-checluster-manager
   namespace: openshift-operators
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/hook: PreSync
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
