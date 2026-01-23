@@ -7,16 +7,40 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 rules:
-  - apiGroups:
-      - org.eclipse.che
-    resources:
-      - checlusters
-    verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
+- apiGroups:
+  - org.eclipse.che
+  resources:
+  - checlusters
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
 ...
