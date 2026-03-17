@@ -25,6 +25,9 @@ spec:
     storage_type: file
   lightspeed:
     disabled: true
+  mcp:
+    allow_write_operations: false
+    disabled: false
   extra_settings:
     - setting: REDIRECT_IS_HTTPS
       value: '"True"'
